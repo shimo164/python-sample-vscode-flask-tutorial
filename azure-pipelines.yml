@@ -45,3 +45,15 @@ steps:
       appName: '$(webAppName)'
       package: '$(Build.ArtifactStagingDirectory)/app.zip'
     displayName: 'Deploy to Azure App Service'
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: '$(azureSubscription)'
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        az account show -o table
+        az webapp show \
+          -g rg-flask-hands-on \
+          -n flask-hands-on-fmwjfjaz5nhek \
+          -o table
