@@ -38,6 +38,26 @@ steps:
       replaceExistingArchive: true
     displayName: 'Archive app'
 
+  - task: AzureCLI@2
+    displayName: 'Check Azure connection'
+    inputs:
+      azureSubscription: '$(azureSubscription)'
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        echo "=== az account show ==="
+        az account show --query "{name:name, subscriptionId:id, tenantId:tenantId}" -o table
+
+        echo "=== resource group ==="
+        az group show -n rg-flask-hands-on --query "{name:name, location:location}" -o table
+
+        echo "=== web app ==="
+        az webapp show \
+          -g rg-flask-hands-on \
+          -n $(webAppName) \
+          --query "{name:name, resourceGroup:resourceGroup, location:location, state:state}" \
+          -o table
+
   - task: AzureWebApp@1
     inputs:
       azureSubscription: '$(azureSubscription)'
@@ -45,15 +65,3 @@ steps:
       appName: '$(webAppName)'
       package: '$(Build.ArtifactStagingDirectory)/app.zip'
     displayName: 'Deploy to Azure App Service'
-
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: '$(azureSubscription)'
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        az account show -o table
-        az webapp show \
-          -g rg-flask-hands-on \
-          -n flask-hands-on-fmwjfjaz5nhek \
-          -o table
