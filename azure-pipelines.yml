@@ -7,6 +7,7 @@ pool:
 variables:
   azureSubscription: 'azure-main-flask-handon-20260614'
   webAppName: 'flask-hands-on-fmwjfjaz5nhek'
+  resourceGroupName: 'rg-flask-hands-on'
 
 strategy:
   matrix:
@@ -22,12 +23,29 @@ steps:
   - script: |
       python -m pip install --upgrade pip
       pip install -r requirements.txt
-    displayName: 'Install dependencies'
+    displayName: 'Install dependencies on build agent'
 
   - script: |
       pip install pytest pytest-azurepipelines
       pytest
     displayName: 'pytest'
+
+  - task: AzureCLI@2
+    displayName: 'Configure App Service'
+    inputs:
+      azureSubscription: '$(azureSubscription)'
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        az webapp config appsettings set \
+          -g $(resourceGroupName) \
+          -n $(webAppName) \
+          --settings SCM_DO_BUILD_DURING_DEPLOYMENT=1
+
+        az webapp config set \
+          -g $(resourceGroupName) \
+          -n $(webAppName) \
+          --startup-file "gunicorn --bind=0.0.0.0 --timeout 600 app:app"
 
   - task: ArchiveFiles@2
     inputs:
@@ -38,47 +56,10 @@ steps:
       replaceExistingArchive: true
     displayName: 'Archive app'
 
-  - task: AzureCLI@2
-    displayName: 'Show App Service settings'
-    inputs:
-      azureSubscription: '$(azureSubscription)'
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        echo "=== runtime ==="
-        az webapp config show \
-          -g rg-flask-hands-on \
-          -n $(webAppName) \
-          --query "{linuxFxVersion:linuxFxVersion,startupFile:appCommandLine}" \
-          -o table
-
-        echo "=== app settings ==="
-        az webapp config appsettings list \
-          -g rg-flask-hands-on \
-          -n $(webAppName) \
-          --query "[?name=='SCM_DO_BUILD_DURING_DEPLOYMENT']"
-
-  - task: AzureCLI@2
-    displayName: 'Configure App Service runtime'
-    inputs:
-      azureSubscription: '$(azureSubscription)'
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        az webapp config appsettings set \
-          -g rg-flask-hands-on \
-          -n $(webAppName) \
-          --settings SCM_DO_BUILD_DURING_DEPLOYMENT=1
-
-        az webapp config set \
-          -g rg-flask-hands-on \
-          -n $(webAppName) \
-          --startup-file "gunicorn --bind=0.0.0.0 --timeout 600 app:app"
-
   - task: AzureWebApp@1
-    displayName: 'Deploy to Azure App Service'
     inputs:
       azureSubscription: '$(azureSubscription)'
       appType: 'webAppLinux'
       appName: '$(webAppName)'
       package: '$(Build.ArtifactStagingDirectory)/app.zip'
+    displayName: 'Deploy to Azure App Service'
