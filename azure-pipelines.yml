@@ -39,29 +39,46 @@ steps:
     displayName: 'Archive app'
 
   - task: AzureCLI@2
-    displayName: 'Check Azure connection'
+    displayName: 'Show App Service settings'
     inputs:
       azureSubscription: '$(azureSubscription)'
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
-        echo "=== az account show ==="
-        az account show --query "{name:name, subscriptionId:id, tenantId:tenantId}" -o table
-
-        echo "=== resource group ==="
-        az group show -n rg-flask-hands-on --query "{name:name, location:location}" -o table
-
-        echo "=== web app ==="
-        az webapp show \
+        echo "=== runtime ==="
+        az webapp config show \
           -g rg-flask-hands-on \
           -n $(webAppName) \
-          --query "{name:name, resourceGroup:resourceGroup, location:location, state:state}" \
+          --query "{linuxFxVersion:linuxFxVersion,startupFile:appCommandLine}" \
           -o table
 
+        echo "=== app settings ==="
+        az webapp config appsettings list \
+          -g rg-flask-hands-on \
+          -n $(webAppName) \
+          --query "[?name=='SCM_DO_BUILD_DURING_DEPLOYMENT']"
+
+  - task: AzureCLI@2
+    displayName: 'Configure App Service runtime'
+    inputs:
+      azureSubscription: '$(azureSubscription)'
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        az webapp config appsettings set \
+          -g rg-flask-hands-on \
+          -n $(webAppName) \
+          --settings SCM_DO_BUILD_DURING_DEPLOYMENT=1
+
+        az webapp config set \
+          -g rg-flask-hands-on \
+          -n $(webAppName) \
+          --startup-file "gunicorn --bind=0.0.0.0 --timeout 600 app:app"
+
   - task: AzureWebApp@1
+    displayName: 'Deploy to Azure App Service'
     inputs:
       azureSubscription: '$(azureSubscription)'
       appType: 'webAppLinux'
       appName: '$(webAppName)'
       package: '$(Build.ArtifactStagingDirectory)/app.zip'
-    displayName: 'Deploy to Azure App Service'
